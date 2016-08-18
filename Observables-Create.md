@@ -2,6 +2,8 @@
 
 1. ### Create
 
+   create an Observable from scratch by calling observer methods programmatically
+
    ```java
    public static <T> Observable<T> create(OnSubscribe<T> f) {
        return new Observable<T>(hook.onCreate(f));
@@ -10,18 +12,39 @@
 
 2. ### Defer
 
+   do not create the Observable until the observer subscribes, and create a fresh Observable for each observer
+
    ```java
    public static <T> Observable<T> defer(Func0<Observable<T>> observableFactory) {
        return create(new OnSubscribeDefer<T>(observableFactory));
+   }
+
+   public final class OnSubscribeDefer<T> implements OnSubscribe<T> {
+       @Override
+       public void call(final Subscriber<? super T> s) {
+           Observable<? extends T> o;
+           try {
+               o = observableFactory.call();
+           } catch (Throwable t) {
+               Exceptions.throwOrReport(t, s);
+               return;
+           }
+           o.unsafeSubscribe(Subscribers.wrap(s));
+       }  
    }
    ```
 
 3. ### Empty/Error/Never
 
+   create Observables that have very precise and limited behavior
+
    ```java
    public static <T> Observable<T> empty() {
        return EmptyObservableHolder.instance();
    }
+   public void call(Subscriber<? super Object> child) {
+           child.onCompleted();
+       }
 
    public static <T> Observable<T> error(Throwable exception) {
        return create(new OnSubscribeThrow<T>(exception));
@@ -31,8 +54,12 @@
        return NeverObservableHolder.instance();
    }
    ```
+   EmptyObservableHolder为枚举类型，关键代码：`call`方法中调用`child.onCompleted();`
+   NeverObservableHolder为枚举类型，关键代码：`call`方法中没有调用child任何代码
+   `error`关键代码：`call`方法中调用`observer.onError(exception);`
 
 4. ### From
+   convert some other object or data structure into an Observable
 
    ```java
    public static <T> Observable<T> from(Iterable<? extends T> iterable) {
@@ -61,6 +88,7 @@
    ```
 
 5. ###Interval
+   create an Observable that emits a sequence of integers spaced by a particular time interval
 
    ```java
    public static Observable<Long> interval(long initialDelay, long period, TimeUnit unit, Scheduler scheduler) {
@@ -69,6 +97,7 @@
    ```
 
 6. ###Just
+   convert an object or a set of objects into an Observable that emits that or those objects
 
    ```java
    public static <T> Observable<T> just(final T value) {
@@ -80,6 +109,7 @@
    ```
 
 7. ###Range
+   create an Observable that emits a range of sequential integers
 
    ```java
    public static Observable<Integer> range(int start, int count) {
@@ -105,6 +135,7 @@
    ```
 
 8. ###Repeat
+   create an Observable that emits a particular item or sequence of items repeatedly
 
    ```java
    public final Observable<T> repeat() {
@@ -125,6 +156,7 @@
    ```
 
 9. ###Timer
+   create an Observable that emits a single item after a given delay
 
    ```java
    public static Observable<Long> timer(long delay, TimeUnit unit) {
